@@ -2,7 +2,7 @@ import AppIntents
 
 struct ClearQueueIntent: AppIntent {
     static var title: LocalizedStringResource = "Clear Music Queue"
-    static var description = IntentDescription("Clears the Apple Music queue, keeping only the song that is playing now.")
+    static var description = IntentDescription("Clears the Music queue, keeping only the song that is playing now.")
     static var openAppWhenRun: Bool = false
 
     @MainActor

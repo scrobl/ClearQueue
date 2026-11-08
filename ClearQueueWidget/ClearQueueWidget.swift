@@ -45,7 +45,7 @@ struct ClearQueueWidget: Widget {
             ClearQueueWidgetView()
         }
         .configurationDisplayName("Clear Queue")
-        .description("Clears the Apple Music queue, keeping the current song.")
+        .description("Clears the Music queue, keeping the current song.")
         .supportedFamilies([.systemSmall, .accessoryCircular, .accessoryRectangular])
     }
 }
