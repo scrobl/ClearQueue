@@ -1,0 +1,4 @@
+// Copy to Local.xcconfig (git-ignored) and fill in.
+// Your Apple Developer Team ID (Xcode > Settings > Accounts), and a bundle ID prefix you own.
+DEVELOPMENT_TEAM = ABCDE12345
+BUNDLE_ID_PREFIX = com.yourname.clearqueue
