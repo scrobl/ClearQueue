@@ -8,6 +8,8 @@ It uses only public APIs (`MediaPlayer`). iOS can't edit the system queue in pla
 
 App Store link: coming soon.
 
+TestFlight: https://testflight.apple.com/join/Bm2ZBzXE
+
 ## Build it yourself
 
 Requires Xcode and an Apple ID (a free one works, but installs expire after 7 days).
