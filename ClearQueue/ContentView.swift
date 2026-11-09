@@ -23,10 +23,15 @@ struct ContentView: View {
                         if !clearer.album.isEmpty {
                             Text(clearer.album).font(.subheadline).foregroundStyle(.tertiary)
                         }
+                    } else {
+                        Text("Start a song in the Music app first, then come back and tap Clear Queue.")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 2)
                     }
                 }
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
+                .lineLimit(clearer.hasSong ? 2 : 4)
                 .minimumScaleFactor(0.8)
                 Spacer(minLength: 0)
         }
@@ -64,15 +69,20 @@ struct ContentView: View {
                             .autocorrectionDisabled()
                             .keyboardType(.URL)
                     }
+                    if clearer.returnMode != .stay {
+                        Picker("Switch after", selection: $clearer.returnDelay) {
+                            ForEach([1, 2, 3, 5, 8], id: \.self) { Text("\($0) seconds").tag($0) }
+                        }
+                    }
                 } footer: {
-                    Text("iOS doesn't let an app close itself, so ClearQueue can open another app instead. Another app needs its URL scheme, which you can usually find in its documentation.")
+                    Text("iOS doesn't let an app close itself, so ClearQueue can open another app instead. A countdown appears after clearing, with a Stay here button to cancel. Another app needs its URL scheme, which you can usually find in its documentation.")
                 }
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showSettings = false } } }
         }
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
     }
 
     private var controls: some View {
@@ -93,17 +103,30 @@ struct ContentView: View {
 
             ZStack {
                 if let status = clearer.status {
-                    Label(status, systemImage: clearer.statusIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
-                        .font(.headline)
-                        .foregroundStyle(clearer.statusIsError ? Color.orange : Color.green)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
-                        .background(
-                            (clearer.statusIsError ? Color.orange : Color.green).opacity(0.15),
-                            in: Capsule()
-                        )
-                        .transition(.scale.combined(with: .opacity))
+                    VStack(spacing: 8) {
+                        Label(status, systemImage: clearer.statusIsError ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                            .font(.headline)
+                            .foregroundStyle(clearer.statusIsError ? Color.orange : Color.green)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 10)
+                            .background(
+                                (clearer.statusIsError ? Color.orange : Color.green).opacity(0.15),
+                                in: Capsule()
+                            )
+                        if let seconds = clearer.returnCountdown {
+                            HStack(spacing: 12) {
+                                Text("Opening \(clearer.returnTargetName) in \(seconds)…")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                                Button("Stay here") { clearer.cancelReturn() }
+                                    .buttonStyle(.bordered)
+                                    .tint(.pink)
+                            }
+                        }
+                    }
+                    .transition(.scale.combined(with: .opacity))
                 } else {
                     Text(clearer.autoClear
                          ? "Clears once each time you open the app. Use the button to clear again."
@@ -113,7 +136,7 @@ struct ContentView: View {
                         .multilineTextAlignment(.center)
                 }
             }
-            .frame(minHeight: 48)
+            .frame(minHeight: clearer.returnMode == .stay ? 48 : 96)
             .animation(.spring(duration: 0.35), value: clearer.status)
         }
         .padding(.horizontal, 24)

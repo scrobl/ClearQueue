@@ -37,6 +37,24 @@ final class QueueClearer: ObservableObject {
         didSet { UserDefaults.standard.set(customScheme, forKey: "customScheme") }
     }
 
+    /// Seconds to wait (with a visible countdown and a "Stay here" button) before opening the other app.
+    @Published var returnDelay = UserDefaults.standard.object(forKey: "returnDelay") as? Int ?? 3 {
+        didSet { UserDefaults.standard.set(returnDelay, forKey: "returnDelay") }
+    }
+    /// Seconds left before switching apps; nil when no switch is pending.
+    @Published var returnCountdown: Int?
+    private var returnTask: Task<Void, Never>?
+
+    var returnTargetName: String {
+        switch returnMode {
+        case .stay: return ""
+        case .music: return "Music"
+        case .custom:
+            let t = customScheme.trimmingCharacters(in: .whitespacesAndNewlines)
+            return t.replacingOccurrences(of: "://", with: "").capitalized
+        }
+    }
+
     private var handledThisOpen = false
     private let player = MPMusicPlayerController.systemMusicPlayer
     private var observer: NSObjectProtocol?
@@ -75,45 +93,83 @@ final class QueueClearer: ObservableObject {
     }
 
     /// The next time the app is opened counts as a new open.
-    func appDidEnterBackground() { handledThisOpen = false }
+    func appDidEnterBackground() {
+        handledThisOpen = false
+        cancelReturn() // never switch apps later on the user's behalf
+    }
 
-    private func show(_ message: String, isError: Bool) {
+    private func show(_ message: String, isError: Bool, autoDismiss: Bool = true) {
         statusTask?.cancel()
         statusIsError = isError
         status = message
-        guard !isError else { return }
+        guard !isError, autoDismiss else { return }
+        scheduleDismiss()
+    }
+
+    private func scheduleDismiss(after seconds: Double = 4) {
+        statusTask?.cancel()
         statusTask = Task {
-            try? await Task.sleep(for: .seconds(4))
+            try? await Task.sleep(for: .seconds(seconds))
             if !Task.isCancelled { status = nil }
         }
     }
 
-    /// iOS apps can't close themselves, but they can open another app.
-    private func returnToMusicApp() async {
-        let url: URL?
+    private func returnURL() -> URL? {
         switch returnMode {
-        case .stay: return
-        case .music: url = URL(string: "music://")
+        case .stay: return nil
+        case .music: return URL(string: "music://")
         case .custom:
             let t = customScheme.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !t.isEmpty else { return }
-            url = URL(string: t.contains("://") ? t : "\(t)://")
+            guard !t.isEmpty else { return nil }
+            return URL(string: t.contains("://") ? t : "\(t)://")
         }
-        guard let url else { return }
-        try? await Task.sleep(for: .milliseconds(700)) // let the confirmation show briefly
-        if !(await UIApplication.shared.open(url)) {
-            show("Couldn't open \(url.absoluteString). Check the app link in Settings.", isError: true)
+    }
+
+    /// iOS apps can't close themselves, but they can open another app. Counts down first so the
+    /// user can cancel with "Stay here".
+    private func startReturn(to url: URL) {
+        returnTask?.cancel()
+        returnTask = Task {
+            var remaining = max(returnDelay, 1)
+            while remaining > 0 {
+                returnCountdown = remaining
+                try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { return }
+                remaining -= 1
+            }
+            returnCountdown = nil
+            returnTask = nil
+            if await UIApplication.shared.open(url) {
+                status = nil
+            } else {
+                show("Couldn't open \(url.absoluteString). Check the app link in Settings.", isError: true)
+            }
         }
+    }
+
+    /// The "Stay here" button.
+    func cancelReturn() {
+        guard returnTask != nil || returnCountdown != nil else { return }
+        returnTask?.cancel()
+        returnTask = nil
+        returnCountdown = nil
+        scheduleDismiss(after: 3)
     }
 
     func clearQueue() {
         guard !isWorking else { return }
         isWorking = true
+        returnTask?.cancel(); returnTask = nil; returnCountdown = nil
         status = nil
         Task {
             do {
-                show(try await QueueClearing.clearKeepingCurrent(), isError: false)
-                await returnToMusicApp()
+                let message = try await QueueClearing.clearKeepingCurrent()
+                if let url = returnURL() {
+                    show(message, isError: false, autoDismiss: false)
+                    startReturn(to: url)
+                } else {
+                    show(message, isError: false)
+                }
             }
             catch { show(error.localizedDescription, isError: true) }
             isWorking = false
