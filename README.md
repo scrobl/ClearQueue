@@ -6,7 +6,7 @@ It uses only public APIs (`MediaPlayer`). iOS can't edit the system queue in pla
 
 ## Install
 
-App Store link: coming soon.
+App Store: https://apps.apple.com/us/app/id6832331251
 
 TestFlight: https://testflight.apple.com/join/Bm2ZBzXE
 
